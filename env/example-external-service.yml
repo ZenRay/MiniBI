@@ -1,0 +1,19 @@
+# 示例：另一个项目如何连接到 MiniBI 网络
+# 此文件仅作为示例，展示如何在其他项目中连接到 MiniBI 服务
+
+version: '3.8'
+
+services:
+  example-service:
+    image: nginx:alpine
+    container_name: example-service
+    networks:
+      - minibi-network
+    environment:
+      - MINIBI_BACKEND_URL=http://minibibackend:8000
+      - CLICKHOUSE_HOST=minibiclickhouse
+      - REDIS_HOST=minibiredis
+      
+networks:
+  minibi-network:
+    external: true

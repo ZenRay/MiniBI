@@ -6,6 +6,8 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     container_name: minibiclickhouse
+    networks:
+      - minibi-network
     ports:
       - "8123:8123"
       - "9000:9000"
@@ -20,6 +22,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: minibiredis
+    networks:
+      - minibi-network
     ports:
       - "6379:6379"
     volumes:
@@ -30,6 +34,8 @@ services:
   backend:
     build: ../backend
     container_name: minibibackend
+    networks:
+      - minibi-network
     ports:
       - "8000:8000"
     depends_on:
@@ -43,12 +49,19 @@ services:
   frontend:
     build: ../frontend
     container_name: minibifrontend
+    networks:
+      - minibi-network
     ports:
       - "3000:3000"
     depends_on:
       - backend
     env_file:
       - ./frontend.env
+
+networks:
+  minibi-network:
+    name: minibi-network
+    external: true
 
 volumes:
   clickhouse_data:
