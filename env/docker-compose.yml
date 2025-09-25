@@ -14,6 +14,7 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./clickhouse_config:/etc/clickhouse-server
+      - ../datalayer/clickhouse/initdb:/docker-entrypoint-initdb.d
     environment:
       CLICKHOUSE_DB: bi_mvp
       CLICKHOUSE_USER: admin
