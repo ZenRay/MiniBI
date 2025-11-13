@@ -1,0 +1,152 @@
+services:
+  # Redis - 用于缓存和 Celery 消息队列
+  redis:
+    image: redis:7-alpine
+    container_name: superset_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_MAXMEMORY=256mb
+      - REDIS_MAXMEMORY_POLICY=allkeys-lru
+    networks:
+      - superset_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL - 用于 Superset 元数据存储
+  postgres:
+    image: postgres:15-alpine
+    container_name: superset_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - superset_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Superset Web 应用
+  superset:
+    image: apache/superset:latest
+    container_name: superset_app
+    command: ["/app/docker/docker-entrypoint.sh"]
+    ports:
+      - "8088:8088"
+    environment:
+      FLASK_ENV: ${FLASK_ENV}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_CELERY_DB: 1
+      REDIS_CACHE_DB: 2
+      CACHE_DEFAULT_TIMEOUT: 300
+      CACHE_KEY_PREFIX: superset_
+      CACHE_TYPE: RedisCache
+      CACHE_REDIS_URL: redis://redis:6379/2
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONUNBUFFERED: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - superset_home:/app/superset_home
+    networks:
+      - superset_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Superset 初始化任务
+  superset-init:
+    image: apache/superset:latest
+    container_name: superset_init
+    command: ["/app/docker/docker-init.sh"]
+    environment:
+      FLASK_ENV: ${FLASK_ENV}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - superset_network
+
+  # Celery Worker - 用于异步任务
+  superset-worker:
+    image: apache/superset:latest
+    container_name: superset_worker
+    command: celery --app=superset.tasks.celery_app:app worker --loglevel=info --concurrency=4
+    environment:
+      FLASK_ENV: ${FLASK_ENV}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_CELERY_DB: 1
+      REDIS_CACHE_DB: 2
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONUNBUFFERED: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - superset_home:/app/superset_home
+    networks:
+      - superset_network
+
+  # Celery Beat - 用于定时任务调度
+  superset-beat:
+    image: apache/superset:latest
+    container_name: superset_beat
+    command: celery --app=superset.tasks.celery_app:app beat --loglevel=info
+    environment:
+      FLASK_ENV: ${FLASK_ENV}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_CELERY_DB: 1
+      REDIS_CACHE_DB: 2
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONUNBUFFERED: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - superset_home:/app/superset_home
+    networks:
+      - superset_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  superset_home:
+
+networks:
+  superset_network:
+    driver: bridge
