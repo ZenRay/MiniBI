@@ -43,4 +43,7 @@ yarn.lock
 data/
 logs/
 clickhouse_data/
+env/docker-compose.test.yml
+env/clickhouse-users/
+env/clickhouse-users/*
 redis_data/

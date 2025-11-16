@@ -50,6 +50,39 @@ CREATE TABLE IF NOT EXISTS user_behavior (
     product_id UInt32,
     action_type String,
     revenue Decimal(10,2),
+
+## Deployment (env)
+
+仓库中 `env/DEPLOY.md` 包含针对本项目在本地使用 Docker Compose 部署 Apache Superset 的简明步骤。本节摘录关键步骤并补充快速复现命令：
+
+- 构建本地 Superset 镜像（使用清华 PyPI 加速）：
+
+```bash
+cd env
+docker compose build --pull --no-cache superset-init superset superset-worker superset-beat
+```
+
+- 启动依赖并初始化：
+
+```bash
+docker compose up -d postgres redis
+docker compose run --rm --no-deps superset-init
+```
+
+- 启动服务并健康检查：
+
+```bash
+docker compose up -d superset superset-worker superset-beat
+curl -f http://localhost:8088/health
+```
+
+- 停止与清理（会删除本地构建镜像与命名卷）：
+
+```bash
+docker compose down --rmi local -v --remove-orphans
+```
+
+更多细节见 `env/DEPLOY.md`（包括故障排查命令、文件说明与建议）。
     session_id String,
     platform String
 ) ENGINE = MergeTree()

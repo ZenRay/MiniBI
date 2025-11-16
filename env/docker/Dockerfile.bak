@@ -1,0 +1,3 @@
+FROM apache/superset:latest
+
+# Backup of previous Dockerfile (kept for reference).

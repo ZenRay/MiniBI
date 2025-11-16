@@ -3,6 +3,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: superset_redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -22,6 +23,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: superset_postgres
+    restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
@@ -40,14 +42,18 @@ services:
 
   # Superset Web 应用
   superset:
-    image: apache/superset:latest
+    build:
+      context: ./docker
+    image: local/superset:latest
     container_name: superset_app
-    command: ["/app/docker/docker-entrypoint.sh"]
+    # 不覆盖镜像自带的入口点，使用镜像默认 ENTRYPOINT/CMD
+    restart: unless-stopped
     ports:
       - "8088:8088"
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      PYTHONPATH: /app
       SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       REDIS_CELERY_DB: 1
@@ -65,7 +71,9 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - superset_home:/app/superset_home
+      - superset_workdir:${SUPERSET_WORKDIR:-/app/superset_home}
+      - ./docker/superset_config.py:/app/superset_config.py:ro
+      - ./uploads:/app/static/uploads
     networks:
       - superset_network
     healthcheck:
@@ -76,12 +84,19 @@ services:
 
   # Superset 初始化任务
   superset-init:
-    image: apache/superset:latest
+    build:
+      context: ./docker
+    image: local/superset:latest
     container_name: superset_init
     command: ["/app/docker/docker-init.sh"]
+    # 挂载本地的 init 脚本以便自定义和快速修改
+    volumes:
+      - ./docker/docker-init.sh:/app/docker/docker-init.sh:ro
+      - ./docker/superset_config.py:/app/superset_config.py:ro
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      PYTHONPATH: /app
       SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
     depends_on:
@@ -94,12 +109,16 @@ services:
 
   # Celery Worker - 用于异步任务
   superset-worker:
-    image: apache/superset:latest
+    build:
+      context: ./docker
+    image: local/superset:latest
     container_name: superset_worker
     command: celery --app=superset.tasks.celery_app:app worker --loglevel=info --concurrency=4
+    restart: unless-stopped
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      PYTHONPATH: /app
       SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       REDIS_CELERY_DB: 1
@@ -112,19 +131,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    working_dir: ${SUPERSET_WORKDIR:-/app/superset_home}
+    user: "${CONTAINER_USER:-1000:1000}"
     volumes:
-      - superset_home:/app/superset_home
+      - superset_workdir:${SUPERSET_WORKDIR:-/app/superset_home}
+      - ./docker/superset_config.py:/app/superset_config.py:ro
     networks:
       - superset_network
 
+
+
   # Celery Beat - 用于定时任务调度
   superset-beat:
-    image: apache/superset:latest
+    build:
+      context: ./docker
+    image: local/superset:latest
     container_name: superset_beat
     command: celery --app=superset.tasks.celery_app:app beat --loglevel=info
+    restart: unless-stopped
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      PYTHONPATH: /app
       SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       REDIS_CELERY_DB: 1
@@ -137,15 +165,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    working_dir: ${SUPERSET_WORKDIR:-/app/superset_home}
+    user: "${CONTAINER_USER:-1000:1000}"
     volumes:
-      - superset_home:/app/superset_home
+      - superset_workdir:${SUPERSET_WORKDIR:-/app/superset_home}
+      - ./docker/superset_config.py:/app/superset_config.py:ro
     networks:
       - superset_network
 
 volumes:
   postgres_data:
   redis_data:
-  superset_home:
+  superset_workdir:
 
 networks:
   superset_network:

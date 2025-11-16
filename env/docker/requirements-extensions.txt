@@ -1,0 +1,29 @@
+
+# DB drivers and connectors
+psycopg2-binary==2.9.7
+pymysql==1.0.3
+mysqlclient==2.2.7
+
+# ClickHouse
+clickhouse-driver==0.2.3
+clickhouse-sqlalchemy==0.2.2
+clickhouse-connect==0.5.12
+
+# HBase/Phoenix
+phoenixdb==1.2.2
+happybase==1.3.0
+thrift==0.16.0
+
+# Hive
+pyhive==0.6.3
+
+# Data parsers
+pandas==2.1.3
+openpyxl==3.1.2
+xlrd==2.0.1
+
+# Core Superset and key dependencies (pinned for reproducible builds)
+apache-superset==6.0.0rc2
+flask-appbuilder==5.0.2
+SQLAlchemy==1.4.54
+
