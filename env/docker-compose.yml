@@ -180,4 +180,5 @@ volumes:
 
 networks:
   superset_network:
-    driver: bridge
+    external:
+      name: analytics_net
