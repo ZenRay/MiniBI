@@ -49,6 +49,7 @@ RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		libmariadb3 \
 		ca-certificates \
+		redis-tools \
 	&& rm -rf /var/lib/apt/lists/*
 
 # ensure old app code is removed so venv-installed packages are authoritative
@@ -56,6 +57,12 @@ RUN rm -rf /app/superset || true
 
 # copy venv from builder
 COPY --from=builder /app/.venv /app/.venv
+
+# Copy local overrides (if present) into the image so we can safely
+# patch Celery teardown behavior in production images. This file is
+# optional for local development; the compose mounts will still take
+# precedence if present on the host.
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} ./overrides/superset/tasks/celery_app.py /app/superset/tasks/celery_app.py
 
 
 # allow the runtime UID/GID and username to be provided at build-time
