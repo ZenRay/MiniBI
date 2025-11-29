@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<yandex>
+  <!-- 允许监听所有地址，显式声明端口（默认镜像通常已配置） -->
+  <listen_host>0.0.0.0</listen_host>
+  <tcp_port>9000</tcp_port>
+  <http_port>8123</http_port>
+</yandex>
