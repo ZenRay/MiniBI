@@ -24,6 +24,7 @@ services:
     image: postgres:15-alpine
     container_name: superset_postgres
     restart: unless-stopped
+    env_file: .env
     ports:
       - "5432:5432"
     environment:
@@ -48,13 +49,19 @@ services:
     container_name: superset_app
     # 不覆盖镜像自带的入口点，使用镜像默认 ENTRYPOINT/CMD
     restart: unless-stopped
+    env_file: .env
     ports:
       - "8088:8088"
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
       PYTHONPATH: /app
+      # Admin account (optional) - populated from .env when present
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SUPERSET__SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       REDIS_CELERY_DB: 1
       REDIS_CACHE_DB: 2
@@ -91,11 +98,17 @@ services:
     command: ["/app/docker/docker-init.sh"]
     # 挂载本地的 init 脚本以便自定义和快速修改
     # 生产配置使用镜像内置脚本与配置，避免绑定主机文件
+    env_file: .env
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
       PYTHONPATH: /app
+      # Admin account (optional) - populated from .env when present
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SUPERSET__SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
@@ -113,11 +126,13 @@ services:
     container_name: superset_worker
     command: celery --app=superset.tasks.celery_app:app worker --loglevel=info --concurrency=4
     restart: unless-stopped
+    env_file: .env
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
       PYTHONPATH: /app
       SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SUPERSET__SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       REDIS_CELERY_DB: 1
       REDIS_CACHE_DB: 2
@@ -153,11 +168,13 @@ services:
     container_name: superset_beat
     command: celery --app=superset.tasks.celery_app:app beat --loglevel=info
     restart: unless-stopped
+    env_file: .env
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
       PYTHONPATH: /app
       SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SUPERSET__SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       REDIS_CELERY_DB: 1
       REDIS_CACHE_DB: 2

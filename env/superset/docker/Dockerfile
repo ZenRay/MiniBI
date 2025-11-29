@@ -58,17 +58,23 @@ RUN rm -rf /app/superset || true
 # copy venv from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy local overrides (if present) into the image so we can safely
-# patch Celery teardown behavior in production images. This file is
-# optional for local development; the compose mounts will still take
-# precedence if present on the host.
-COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} ./overrides/superset/tasks/celery_app.py /app/superset/tasks/celery_app.py
+# Copy any local overrides into the image under /app/overrides.
+# Do NOT overwrite installed superset package modules; instead register
+# our small safe-shutdown handler via sitecustomize so it runs at Python
+# startup in all processes (web, worker, beat) without replacing app objects.
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} ./overrides /app/overrides
 
-# Also copy the override into the venv's site-packages so it reliably
-# replaces the installed package implementation at runtime.
-RUN if [ -f /app/superset/tasks/celery_app.py ]; then \
-		/app/.venv/bin/python -c "import site,os,shutil; sp=site.getsitepackages()[0]; dst=os.path.join(sp,'superset','tasks'); os.makedirs(dst,exist_ok=True); shutil.copy('/app/superset/tasks/celery_app.py', os.path.join(dst,'celery_app.py'))"; \
-	fi
+# If a safe shutdown override exists, create a sitecustomize that imports it
+# so Python will execute it on interpreter startup (sitecustomize is loaded
+# when present on sys.path). This avoids replacing the installed
+# superset.tasks.celery_app module and preserves the `app` object.
+RUN if [ -f /app/overrides/superset_safe_shutdown.py ]; then \
+			cat /app/overrides/superset_safe_shutdown.py > /app/sitecustomize.py; \
+		fi
+
+# Copy a local `superset_config.py` into the image so runtime processes
+# load our environment-driven overrides (prevents falling back to SQLite).
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} ./superset_config.py /app/superset_config.py
 
 
 # allow the runtime UID/GID and username to be provided at build-time
@@ -81,7 +87,7 @@ ENV SUPERSET_WORKDIR=/app/superset_home
 
 # set ownership of venv and app to the numeric UID/GID
 RUN mkdir -p ${SUPERSET_WORKDIR} \
-		&& chown -R ${CONTAINER_UID}:${CONTAINER_GID} /app/.venv /app ${SUPERSET_WORKDIR} || true
+	&& chown -R ${CONTAINER_UID}:${CONTAINER_GID} /app/.venv /app ${SUPERSET_WORKDIR} || true
 
 ENV PATH="/app/.venv/bin:${PATH}"
 
@@ -89,18 +95,17 @@ ENV PATH="/app/.venv/bin:${PATH}"
 # We try to use `useradd`/`groupadd` when available; otherwise we append
 # minimal entries to /etc/passwd and /etc/group as a fallback.
 RUN if command -v groupadd >/dev/null 2>&1; then \
-			groupadd -g ${CONTAINER_GID} ${CONTAINER_USER} 2>/dev/null || true; \
-		else \
-			grep -q "^${CONTAINER_USER}:" /etc/group || echo "${CONTAINER_USER}:x:${CONTAINER_GID}:" >> /etc/group; \
-		fi \
-		&& if command -v useradd >/dev/null 2>&1; then \
-			useradd -u ${CONTAINER_UID} -g ${CONTAINER_GID} -d ${SUPERSET_WORKDIR} -m -s /bin/sh ${CONTAINER_USER} 2>/dev/null || true; \
-		else \
-			grep -q "^${CONTAINER_USER}:" /etc/passwd || echo "${CONTAINER_USER}:x:${CONTAINER_UID}:${CONTAINER_GID}::${SUPERSET_WORKDIR}:/bin/sh" >> /etc/passwd; \
-		fi \
-		&& mkdir -p ${SUPERSET_WORKDIR} \
-		&& chown -R ${CONTAINER_UID}:${CONTAINER_GID} ${SUPERSET_WORKDIR} /app/.venv /app || true
+		groupadd -g ${CONTAINER_GID} ${CONTAINER_USER} 2>/dev/null || true; \
+	else \
+		grep -q "^${CONTAINER_USER}:" /etc/group || echo "${CONTAINER_USER}:x:${CONTAINER_GID}:" >> /etc/group; \
+	fi \
+	&& if command -v useradd >/dev/null 2>&1; then \
+		useradd -u ${CONTAINER_UID} -g ${CONTAINER_GID} -d ${SUPERSET_WORKDIR} -m -s /bin/sh ${CONTAINER_USER} 2>/dev/null || true; \
+	else \
+		grep -q "^${CONTAINER_USER}:" /etc/passwd || echo "${CONTAINER_USER}:x:${CONTAINER_UID}:${CONTAINER_GID}::${SUPERSET_WORKDIR}:/bin/sh" >> /etc/passwd; \
+	fi \
+	&& mkdir -p ${SUPERSET_WORKDIR} \
+	&& chown -R ${CONTAINER_UID}:${CONTAINER_GID} ${SUPERSET_WORKDIR} /app/.venv /app || true
 
 # Set the default runtime user to the named user we created
 USER ${CONTAINER_USER}:${CONTAINER_USER}
-

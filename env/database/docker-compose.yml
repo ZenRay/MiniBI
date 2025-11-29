@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  clickhouse:
+    build:
+      context: ./clickhouse
+    image: local/clickhouse:latest
+    container_name: clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123" # HTTP
+      - "9000:9000" # native TCP
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/config.d:/etc/clickhouse-server/config.d:ro
+      - ./clickhouse/users.d:/etc/clickhouse-server/users.d:ro
+    networks:
+      - superset_network
+    healthcheck:
+      test: ["CMD-SHELL","curl -f --silent http://127.0.0.1:8123/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  mariadb:
+    build:
+      context: ./mariadb
+    image: local/mariadb:10.6
+    container_name: mariadb
+    restart: unless-stopped
+    env_file: ../superset/.env
+    environment:
+      # allow overriding from ../superset/.env
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-superset}
+      MARIADB_USER: ${MARIADB_USER:-superset}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-superset}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - superset_network
+    healthcheck:
+      test: ["CMD-SHELL","mysqladmin ping -h 127.0.0.1 -u${MARIADB_USER:-root} -p${MARIADB_ROOT_PASSWORD:-root} >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  clickhouse_data:
+  mariadb_data:
+
+networks:
+  superset_network:
+    external: true
+    name: analytics_net
+
+# Notes:
+# - Services are reachable by other Compose stacks on the same external network
+#   using the service names `clickhouse` and `mariadb` as hostnames.
+# - Example ClickHouse HTTP DSN for Superset: http://clickhouse:8123/
+# - Example MariaDB SQLAlchemy DSN for Superset: mysql+pymysql://superset:superset@mariadb:3306/superset
