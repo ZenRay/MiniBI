@@ -72,9 +72,7 @@ services:
         condition: service_healthy
     volumes:
       - superset_workdir:${SUPERSET_WORKDIR:-/app/superset_home}
-      - ./docker/superset_config.py:/app/superset_config.py:ro
-      - ./docker/overrides/superset/tasks/celery_app.py:/app/superset/tasks/celery_app.py:ro
-      - ./uploads:/app/static/uploads
+      - superset_uploads:/app/static/uploads
     networks:
       - superset_network
     healthcheck:
@@ -92,9 +90,7 @@ services:
     container_name: superset_init
     command: ["/app/docker/docker-init.sh"]
     # 挂载本地的 init 脚本以便自定义和快速修改
-    volumes:
-      - ./docker/docker-init.sh:/app/docker/docker-init.sh:ro
-      - ./docker/superset_config.py:/app/superset_config.py:ro
+    # 生产配置使用镜像内置脚本与配置，避免绑定主机文件
     environment:
       FLASK_ENV: ${FLASK_ENV}
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
@@ -137,8 +133,7 @@ services:
     user: "${CONTAINER_USER:-1000:1000}"
     volumes:
       - superset_workdir:${SUPERSET_WORKDIR:-/app/superset_home}
-      - ./docker/superset_config.py:/app/superset_config.py:ro
-      - ./docker/overrides/superset/tasks/celery_app.py:/app/superset/tasks/celery_app.py:ro
+      # 生产环境不挂载本地 superset_config.py，使用镜像内配置/环境变量
     networks:
       - superset_network
     healthcheck:
@@ -178,7 +173,7 @@ services:
     user: "${CONTAINER_USER:-1000:1000}"
     volumes:
       - superset_workdir:${SUPERSET_WORKDIR:-/app/superset_home}
-      - ./docker/superset_config.py:/app/superset_config.py:ro
+      # 生产环境不挂载本地 superset_config.py，使用镜像内配置/环境变量
     networks:
       - superset_network
     healthcheck:
@@ -192,8 +187,9 @@ volumes:
   postgres_data:
   redis_data:
   superset_workdir:
+  superset_uploads:
 
 networks:
   superset_network:
-    external:
-      name: analytics_net
+    name: analytics_net
+    external: true

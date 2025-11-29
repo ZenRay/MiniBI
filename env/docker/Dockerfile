@@ -64,6 +64,12 @@ COPY --from=builder /app/.venv /app/.venv
 # precedence if present on the host.
 COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} ./overrides/superset/tasks/celery_app.py /app/superset/tasks/celery_app.py
 
+# Also copy the override into the venv's site-packages so it reliably
+# replaces the installed package implementation at runtime.
+RUN if [ -f /app/superset/tasks/celery_app.py ]; then \
+		/app/.venv/bin/python -c "import site,os,shutil; sp=site.getsitepackages()[0]; dst=os.path.join(sp,'superset','tasks'); os.makedirs(dst,exist_ok=True); shutil.copy('/app/superset/tasks/celery_app.py', os.path.join(dst,'celery_app.py'))"; \
+	fi
+
 
 # allow the runtime UID/GID and username to be provided at build-time
 ARG CONTAINER_UID=1000
