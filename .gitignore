@@ -46,4 +46,4 @@ clickhouse_data/
 env/docker-compose.test.yml
 env/clickhouse-users/
 env/clickhouse-users/*
-redis_data/
+redis_data/env/superset/.env
