@@ -10,8 +10,19 @@ ENV PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 
 USER root
 
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends \
+RUN if [ -f /etc/apt/sources.list ]; then \
+		sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list || true; \
+		sed -i 's|http://security.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list || true; \
+	else \
+		CODENAME=$(grep '^VERSION_CODENAME=' /etc/os-release | cut -d= -f2 || echo stable); \
+		printf '%s\n' "deb https://mirrors.tuna.tsinghua.edu.cn/debian ${CODENAME} main contrib non-free" \
+			"deb https://mirrors.tuna.tsinghua.edu.cn/debian-security ${CODENAME}-security main contrib non-free" \
+			"deb https://mirrors.tuna.tsinghua.edu.cn/debian ${CODENAME}-updates main contrib non-free" \
+			> /etc/apt/sources.list; \
+	fi \
+	&& export DEBIAN_FRONTEND=noninteractive \
+	&& apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=60 update \
+	&& apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=60 install -y --no-install-recommends \
 		build-essential \
 		gcc \
 		libkrb5-dev \
@@ -45,8 +56,19 @@ FROM apache/superset:latest AS runtime
 USER root
 
 # Install runtime shared libraries required by some DB drivers (e.g. mysqlclient)
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends \
+RUN if [ -f /etc/apt/sources.list ]; then \
+		sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list || true; \
+		sed -i 's|http://security.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list || true; \
+	else \
+		CODENAME=$(grep '^VERSION_CODENAME=' /etc/os-release | cut -d= -f2 || echo stable); \
+		printf '%s\n' "deb https://mirrors.tuna.tsinghua.edu.cn/debian ${CODENAME} main contrib non-free" \
+			"deb https://mirrors.tuna.tsinghua.edu.cn/debian-security ${CODENAME}-security main contrib non-free" \
+			"deb https://mirrors.tuna.tsinghua.edu.cn/debian ${CODENAME}-updates main contrib non-free" \
+			> /etc/apt/sources.list; \
+	fi \
+	&& export DEBIAN_FRONTEND=noninteractive \
+	&& apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=60 update \
+	&& apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=60 install -y --no-install-recommends \
 		libmariadb3 \
 		ca-certificates \
 		redis-tools \

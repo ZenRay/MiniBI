@@ -13,7 +13,7 @@ services:
       - ./clickhouse/config.d:/etc/clickhouse-server/config.d:ro
       - ./clickhouse/users.d:/etc/clickhouse-server/users.d:ro
     networks:
-      - superset_network
+      - analytics_net
     healthcheck:
       test: ["CMD-SHELL","curl -f --silent http://127.0.0.1:8123/ || exit 1"]
       interval: 20s
@@ -38,7 +38,7 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     networks:
-      - superset_network
+      - analytics_net
     healthcheck:
       test: ["CMD-SHELL","mysqladmin ping -h 127.0.0.1 -u${MARIADB_USER:-root} -p${MARIADB_ROOT_PASSWORD:-root} >/dev/null 2>&1 || exit 1"]
       interval: 20s
@@ -50,7 +50,7 @@ volumes:
   mariadb_data:
 
 networks:
-  superset_network:
+  analytics_net:
     external: true
     name: analytics_net
 
